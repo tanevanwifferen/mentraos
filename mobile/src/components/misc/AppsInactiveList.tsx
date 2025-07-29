@@ -687,7 +687,7 @@ export default function InactiveAppList({
   }
 
   return (
-    <View style={{paddingTop: theme.spacing.md, height: 400}}>
+    <View style={{paddingTop: theme.spacing.md}}>
       {!isSearchPage && <AppsHeader title="home:apps" showSearchIcon={true} />}
 
       <Animated.FlatList
