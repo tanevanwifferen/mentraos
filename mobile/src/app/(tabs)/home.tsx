@@ -218,27 +218,27 @@ export default function Homepage() {
         }
       />
 
-      <ScrollView
+      {/* <ScrollView
         style={{marginRight: -theme.spacing.md, paddingRight: theme.spacing.md}}
-        contentInsetAdjustmentBehavior="automatic">
-        <CloudConnection />
+        contentInsetAdjustmentBehavior="automatic"> */}
+      <CloudConnection />
 
-        <SensingDisabledWarning />
+      <SensingDisabledWarning />
 
-        <ConnectedGlasses showTitle={false} />
-        <DeviceToolbar />
-        <Spacer height={theme.spacing.md} />
-        <View ref={connectButtonRef}>
-          <ConnectDeviceButton />
-        </View>
-        <Spacer height={theme.spacing.lg} />
-        <Divider variant="full" />
-        <Spacer height={theme.spacing.md} />
+      <ConnectedGlasses showTitle={false} />
+      <DeviceToolbar />
+      <Spacer height={theme.spacing.md} />
+      <View ref={connectButtonRef}>
+        <ConnectDeviceButton />
+      </View>
+      <Spacer height={theme.spacing.lg} />
+      <Divider variant="full" />
+      <Spacer height={theme.spacing.md} />
 
-        {/* <AppsActiveList /> */}
-        {/* <Spacer height={spacing.xl} /> */}
-        <AppsInactiveList key={`apps-list-${appStatus.length}`} liveCaptionsRef={liveCaptionsRef} />
-      </ScrollView>
+      {/* <AppsActiveList /> */}
+      {/* <Spacer height={spacing.xl} /> */}
+      <AppsInactiveList key={`apps-list-${appStatus.length}`} liveCaptionsRef={liveCaptionsRef} />
+      {/* </ScrollView> */}
 
       <OnboardingSpotlight
         visible={showOnboardingSpotlight}

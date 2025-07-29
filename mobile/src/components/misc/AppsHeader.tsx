@@ -48,7 +48,7 @@ const $tableHeader: ThemedStyle<ViewStyle> = () => ({
 
 const $listHeaderIcon: ThemedStyle<ViewStyle> = () => ({
   marginBottom: 12,
-  flex: 1,
+  // flex: 1,
   alignItems: "center",
   justifyContent: "space-between",
   paddingVertical: 0,

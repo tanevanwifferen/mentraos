@@ -15,7 +15,6 @@ import showAlert from "@/utils/AlertUtils"
 import {PERMISSION_CONFIG} from "@/utils/PermissionsUtils"
 import {translate} from "@/i18n"
 import {useAppTheme} from "@/utils/useAppTheme"
-import {router} from "expo-router"
 import {AppListItem} from "./AppListItem"
 import {Spacer} from "./Spacer"
 import Divider from "./Divider"
@@ -27,13 +26,7 @@ import {
   checkNotificationAccessSpecialPermission,
 } from "@/utils/NotificationServiceUtils"
 import {AppListStoreLink} from "./AppListStoreLink"
-// import DraggableFlatList, {RenderItemParams, ScaleDecorator} from "react-native-draggable-flatlist"
-import Animated, {
-  EntryExitTransition,
-  FadingTransition,
-  JumpingTransition,
-  LinearTransition,
-} from "react-native-reanimated"
+import Animated, {LinearTransition, FadeIn, FadeOut, Layout} from "react-native-reanimated"
 
 // Add a new settings key for app order
 const APP_ORDER_KEY = "APP_ORDER_PREFERENCE"
@@ -66,8 +59,10 @@ export default function InactiveAppList({
   const [showOnboardingTip, setShowOnboardingTip] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
   const [savedAppOrder, setSavedAppOrder] = useState<string[]>([])
+  const [sortedApps, setSortedApps] = useState<AppInterface[]>([])
   const {themed, theme} = useAppTheme()
   const {push} = useNavigationHistory()
+  const [forceReRender, setForceReRender] = useState(0)
 
   // Static values instead of animations
   const bounceAnim = React.useRef(new RNAnimated.Value(0)).current
@@ -78,15 +73,6 @@ export default function InactiveAppList({
   // Reference for the Live Captions list item (use provided ref or create new one)
   const internalLiveCaptionsRef = useRef<any>(null)
   const actualLiveCaptionsRef = liveCaptionsRef || internalLiveCaptionsRef
-
-  // Constants for grid item sizing
-  const GRID_MARGIN = 6 // Total horizontal margin per item (left + right)
-  const numColumns = 4 // Desired number of columns
-
-  // Calculate the item width based on container width and margins
-  const itemWidth = containerWidth > 0 ? (containerWidth - GRID_MARGIN * numColumns) / numColumns : 0
-
-  const textColor = theme.isDark ? "#FFFFFF" : "#000000"
 
   const backendComms = BackendServerComms.getInstance()
 
@@ -153,6 +139,84 @@ export default function InactiveAppList({
       pulseAnim.setValue(0)
     }
   }, [showOnboardingTip])
+
+  // Sort apps based on saved order or default sorting
+  const sortApps = (apps: AppInterface[]) => {
+    console.log("sorting apps")
+
+    // first sort so that apps that are on are first:
+    apps = apps.sort((a, b) => {
+      if (a.is_running && !b.is_running) return -1
+      if (!a.is_running && b.is_running) return 1
+      return 0
+    })
+
+    for (const app of apps) {
+      console.log("app", app.name, app.is_running)
+    }
+
+    if (!onboardingCompleted) {
+      // During onboarding, put Live Captions first
+      return apps.sort((a, b) => {
+        const aIsLiveCaptions =
+          a.packageName === "com.augmentos.livecaptions" || a.packageName === "com.mentra.livecaptions"
+        const bIsLiveCaptions =
+          b.packageName === "com.augmentos.livecaptions" || b.packageName === "com.mentra.livecaptions"
+
+        if (aIsLiveCaptions && !bIsLiveCaptions) return -1
+        if (!aIsLiveCaptions && bIsLiveCaptions) return 1
+        return a.name.localeCompare(b.name)
+      })
+    } else {
+      // Normal alphabetical sort
+      // return apps.sort((a, b) => a.name.localeCompare(b.name))
+      return apps
+    }
+
+    // if (savedAppOrder.length > 0 && onboardingCompleted) {
+    //   // Sort based on saved order
+    //   return apps.sort((a, b) => {
+    //     const aIndex = savedAppOrder.indexOf(a.packageName)
+    //     const bIndex = savedAppOrder.indexOf(b.packageName)
+
+    //     // If both are in saved order, sort by their saved position
+    //     if (aIndex !== -1 && bIndex !== -1) {
+    //       return aIndex - bIndex
+    //     }
+
+    //     // If only one is in saved order, it comes first
+    //     if (aIndex !== -1) return -1
+    //     if (bIndex !== -1) return 1
+
+    //     // If neither are in saved order, sort alphabetically
+    //     return a.name.localeCompare(b.name)
+    //   })
+    // } else
+  }
+
+  // Add effect to sort apps when appStatus or savedAppOrder changes
+  useEffect(() => {
+    let sorted = [...appStatus].filter(app => {
+      const firstIndex = appStatus.findIndex(a => a.packageName === app.packageName)
+      return firstIndex === appStatus.indexOf(app)
+    })
+
+    // Remove notify app on iOS
+    if (Platform.OS === "ios") {
+      sorted = sorted.filter(app => app.packageName !== "cloud.augmentos.notify" && app.name !== "Notify")
+    }
+
+    // Apply sorting
+    sorted = sortApps(sorted)
+
+    // Apply search filter if needed
+    if (searchQuery) {
+      sorted = sorted.filter(app => app.name.toLowerCase().includes(searchQuery.toLowerCase()))
+    }
+
+    setSortedApps(sorted)
+    setForceReRender(forceReRender + 1)
+  }, [appStatus, savedAppOrder, searchQuery])
 
   const completeOnboarding = () => {
     saveSetting(SETTINGS_KEYS.ONBOARDING_COMPLETED, true)
@@ -284,6 +348,58 @@ export default function InactiveAppList({
     })
   }
 
+  const animateItemToTop = async (packageName: string) => {
+    const currentIndex = sortedApps.findIndex(app => app.packageName === packageName)
+
+    if (currentIndex === -1 || currentIndex === 0) {
+      return
+    }
+
+    // Create new array with item moved to top
+    const newData = [...sortedApps]
+    const [movedItem] = newData.splice(currentIndex, 1)
+    newData.unshift(movedItem)
+
+    // Update sorted apps state first (triggers animation)
+    setSortedApps(newData)
+
+    // Then save the order
+    await saveAppOrder(newData)
+  }
+
+  const animateItemToBottom = async (packageName: string) => {
+    const currentIndex = sortedApps.findIndex(app => app.packageName === packageName)
+    if (currentIndex === -1) {
+      return
+    }
+
+    // Find first non-running app index
+    const firstNonRunningIndex = sortedApps.findIndex(app => !app.is_running)
+
+    if (firstNonRunningIndex === -1 || currentIndex >= firstNonRunningIndex) {
+      return
+    }
+
+    // Create new array and move item
+    const newData = [...sortedApps]
+    const [movedItem] = newData.splice(currentIndex, 1)
+
+    // Re-find first non-running index after removal
+    const adjustedIndex = newData.findIndex(app => !app.is_running)
+
+    if (adjustedIndex === -1) {
+      newData.push(movedItem)
+    } else {
+      newData.splice(adjustedIndex, 0, movedItem)
+    }
+
+    // Update sorted apps state first (triggers animation)
+    setSortedApps(newData)
+
+    // Then save the order
+    await saveAppOrder(newData)
+  }
+
   const stopApp = async (packageName: string) => {
     console.log("STOP APP")
 
@@ -304,9 +420,9 @@ export default function InactiveAppList({
       setIsLoading(false)
     }
 
-    setTimeout(() => {
-      animateItemToBottom(packageName)
-    }, 600)
+    // setTimeout(() => {
+    //   animateItemToBottom(packageName)
+    // }, 2000)
   }
 
   const startApp = async (packageName: string) => {
@@ -378,6 +494,7 @@ export default function InactiveAppList({
           iconColor: theme.colors.textDim,
         },
       )
+      return
     }
 
     // Only update UI optimistically after user confirms and animation completes
@@ -445,9 +562,9 @@ export default function InactiveAppList({
       setIsLoading(false)
     }
 
-    setTimeout(() => {
-      animateItemToTop(packageName)
-    }, 1200)
+    // setTimeout(() => {
+    //   animateItemToTop(packageName)
+    // }, 2000)
   }
 
   const getRunningStandardApps = (packageName: string) => {
@@ -457,62 +574,6 @@ export default function InactiveAppList({
   const openAppSettings = (app: any) => {
     console.log("%%% opening app settings", app)
     push("/app/settings", {packageName: app.packageName, appName: app.name})
-  }
-
-  // Filter out duplicate apps and running apps
-  let availableApps = appStatus.filter(app => {
-    // Check if this is the first occurrence of this package name
-    const firstIndex = appStatus.findIndex(a => a.packageName === app.packageName)
-    return firstIndex === appStatus.indexOf(app)
-  })
-
-  // remove the notify app on iOS
-  if (Platform.OS === "ios") {
-    availableApps = availableApps.filter(app => app.packageName !== "cloud.augmentos.notify" && app.name !== "Notify")
-  }
-
-  // Sort apps based on saved order or default sorting
-  const sortApps = (apps: AppInterface[]) => {
-    if (savedAppOrder.length > 0 && onboardingCompleted) {
-      // Sort based on saved order
-      return apps.sort((a, b) => {
-        const aIndex = savedAppOrder.indexOf(a.packageName)
-        const bIndex = savedAppOrder.indexOf(b.packageName)
-
-        // If both are in saved order, sort by their saved position
-        if (aIndex !== -1 && bIndex !== -1) {
-          return aIndex - bIndex
-        }
-
-        // If only one is in saved order, it comes first
-        if (aIndex !== -1) return -1
-        if (bIndex !== -1) return 1
-
-        // If neither are in saved order, sort alphabetically
-        return a.name.localeCompare(b.name)
-      })
-    } else if (!onboardingCompleted) {
-      // During onboarding, put Live Captions first
-      return apps.sort((a, b) => {
-        const aIsLiveCaptions =
-          a.packageName === "com.augmentos.livecaptions" || a.packageName === "com.mentra.livecaptions"
-        const bIsLiveCaptions =
-          b.packageName === "com.augmentos.livecaptions" || b.packageName === "com.mentra.livecaptions"
-
-        if (aIsLiveCaptions && !bIsLiveCaptions) return -1
-        if (!aIsLiveCaptions && bIsLiveCaptions) return 1
-        return a.name.localeCompare(b.name)
-      })
-    } else {
-      // Normal alphabetical sort
-      return apps.sort((a, b) => a.name.localeCompare(b.name))
-    }
-  }
-
-  availableApps = sortApps(availableApps)
-
-  if (searchQuery) {
-    availableApps = availableApps.filter(app => app.name.toLowerCase().includes(searchQuery.toLowerCase()))
   }
 
   const handleTogglePress = async (app: AppInterface) => {
@@ -539,7 +600,7 @@ export default function InactiveAppList({
     const ref = isLiveCaptions ? actualLiveCaptionsRef : null
 
     return (
-      <View>
+      <Animated.View entering={FadeIn.duration(300)} exiting={FadeOut.duration(300)} layout={Layout.springify()}>
         <AppListItem
           app={app}
           // @ts-ignore
@@ -552,20 +613,11 @@ export default function InactiveAppList({
           refProp={ref}
           opacity={1 as any}
         />
-        {/* <Spacer height={16} />
-            <Text>{app.name}</Text>
-            <Spacer height={16} /> */}
-        {/* <Divider variant="inset" /> */}
-      </View>
+      </Animated.View>
     )
   }
 
   const keyExtractor = (app: AppInterface) => app.packageName
-
-  const handleDragEnd = ({data}: {data: AppInterface[]}) => {
-    // Save the new order
-    saveAppOrder(data)
-  }
 
   // If searching or in onboarding, don't use draggable list
   if (isSearchPage || searchQuery || !onboardingCompleted) {
@@ -573,7 +625,7 @@ export default function InactiveAppList({
       <View>
         {!isSearchPage && <AppsHeader title="home:apps" showSearchIcon={true} />}
 
-        {availableApps.map((app, index) => {
+        {sortedApps.map((app, index) => {
           const isLiveCaptions =
             app.packageName === "com.augmentos.livecaptions" ||
             app.packageName === "cloud.augmentos.live-captions" ||
@@ -595,7 +647,7 @@ export default function InactiveAppList({
                 refProp={ref}
                 opacity={1 as any}
               />
-              {index < availableApps.length - 1 && (
+              {index < sortedApps.length - 1 && (
                 <>
                   <Spacer height={8} />
                   <Divider variant="inset" />
@@ -606,18 +658,8 @@ export default function InactiveAppList({
           )
         })}
 
-        {/* Add "Get More Apps" link at the bottom - only on home page, not search */}
-        {availableApps.length > 0 && !isSearchPage && (
-          <>
-            <Spacer height={8} />
-            <Divider variant="inset" />
-            <Spacer height={8} />
-            <AppListStoreLink />
-          </>
-        )}
-
         {/* Show "No apps found" message when searching returns no results */}
-        {isSearchPage && searchQuery && availableApps.length === 0 && (
+        {isSearchPage && searchQuery && sortedApps.length === 0 && (
           <View style={themed($noAppsContainer)}>
             <Text style={themed($noAppsText)}>{translate("home:noAppsFoundForQuery", {query: searchQuery})}</Text>
             {onClearSearch && (
@@ -644,102 +686,16 @@ export default function InactiveAppList({
     )
   }
 
-  const animateItemToTop = async (packageName: string) => {
-    // Find the index of the item to move
-    const currentIndex = availableApps.findIndex(app => app.packageName === packageName)
-
-    if (currentIndex === -1 || currentIndex === 0) {
-      // Item not found or already at top
-      return
-    }
-
-    // Create a new array with the item moved to the top
-    const newData = [...availableApps]
-    const [movedItem] = newData.splice(currentIndex, 1)
-    newData.unshift(movedItem)
-
-    // Update the data (this will trigger the animation)
-    // You'll need to update availableApps through state
-    // Since availableApps is derived from appStatus, you might need to:
-    // 1. Update the saved app order
-    // 2. Let the sorting logic handle it
-
-    await saveAppOrder(newData)
-
-    // Force a refresh to apply the new order
-    // You might need to add a state variable to trigger re-render
-    // setSavedAppOrder(newData.map(app => app.packageName))
-  }
-
-  const animateItemToBottom = async (packageName: string) => {
-    // move to the first position that isn't currently running:
-    const currentIndex = availableApps.findIndex(app => app.packageName === packageName)
-    if (currentIndex === -1) {
-      // Item not found
-      return
-    }
-
-    // Find the index of the first non-running app
-    const firstNonRunningIndex = availableApps.findIndex(app => !app.is_running)
-
-    // If no non-running apps or item is already at or after the first non-running position
-    if (firstNonRunningIndex === -1 || currentIndex >= firstNonRunningIndex) {
-      return
-    }
-
-    // Create a new array and move the item
-    const newData = [...availableApps]
-    const [movedItem] = newData.splice(currentIndex, 1)
-
-    // Re-find the first non-running index after removal (it may have shifted)
-    const adjustedIndex = newData.findIndex(app => !app.is_running)
-
-    // Insert at the first non-running position
-    if (adjustedIndex === -1) {
-      // All remaining apps are running, put at end
-      newData.push(movedItem)
-    } else {
-      newData.splice(adjustedIndex, 0, movedItem)
-    }
-
-    // Update the data
-    await saveAppOrder(newData)
-  }
-
   return (
-    <View style={{flex: 1, paddingTop: theme.spacing.md}}>
+    <View style={{paddingTop: theme.spacing.md, height: 400}}>
       {!isSearchPage && <AppsHeader title="home:apps" showSearchIcon={true} />}
-
-      {/* <DraggableFlatList
-        style={{marginRight: -theme.spacing.md, paddingRight: theme.spacing.md}}
-        data={availableApps}
-        renderItem={renderDraggableItem}
-        keyExtractor={keyExtractor}
-        onDragEnd={handleDragEnd}
-        itemLayoutAnimation={LinearTransition}
-        // activationDistance={40}
-        autoscrollThreshold={10}
-        ListFooterComponent={
-          <>
-            <Spacer height={8} />
-            <Divider variant="inset" />
-            <Spacer height={8} />
-            <AppListStoreLink />
-            <Spacer height={40} />
-          </>
-        }
-      /> */}
 
       <Animated.FlatList
         style={{marginRight: -theme.spacing.md, paddingRight: theme.spacing.md}}
-        data={availableApps}
-        // renderItem={renderDraggableItem}
+        data={sortedApps}
         renderItem={renderItem}
-        // keyExtractor={keyExtractor}
-        // onDragEnd={handleDragEnd}
-        itemLayoutAnimation={JumpingTransition.duration(1000)}
-        // activationDistance={40}
-        // autoscrollThreshold={10}
+        keyExtractor={keyExtractor}
+        itemLayoutAnimation={LinearTransition.springify(2000).delay(300)}
         ListFooterComponent={
           <>
             <Spacer height={8} />
