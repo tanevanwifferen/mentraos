@@ -26,7 +26,7 @@ import {
   checkNotificationAccessSpecialPermission,
 } from "@/utils/NotificationServiceUtils"
 import {AppListStoreLink} from "./AppListStoreLink"
-import Animated, {LinearTransition, FadeIn, FadeOut, Layout} from "react-native-reanimated"
+import Animated, {LinearTransition, FadeIn, FadeOut, Layout, SequencedTransition, Easing} from "react-native-reanimated"
 
 // Add a new settings key for app order
 const APP_ORDER_KEY = "APP_ORDER_PREFERENCE"
@@ -57,18 +57,16 @@ export default function InactiveAppList({
   const [inLiveCaptionsPhase, setInLiveCaptionsPhase] = useState(false)
   const [showSettingsHint, setShowSettingsHint] = useState(false)
   const [showOnboardingTip, setShowOnboardingTip] = useState(false)
-  const [isLoading, setIsLoading] = useState(true)
+  const [isLoading, setIsLoading] = useState(false)
   const [savedAppOrder, setSavedAppOrder] = useState<string[]>([])
   const [sortedApps, setSortedApps] = useState<AppInterface[]>([])
   const {themed, theme} = useAppTheme()
   const {push} = useNavigationHistory()
-  const [forceReRender, setForceReRender] = useState(0)
+  const [recencyBias, setRecencyBias] = useState<Record<string, number>>({})
 
   // Static values instead of animations
   const bounceAnim = React.useRef(new RNAnimated.Value(0)).current
   const pulseAnim = React.useRef(new RNAnimated.Value(0)).current
-
-  const [containerWidth, setContainerWidth] = React.useState(0)
 
   // Reference for the Live Captions list item (use provided ref or create new one)
   const internalLiveCaptionsRef = useRef<any>(null)
@@ -90,6 +88,16 @@ export default function InactiveAppList({
     const order = apps.map(app => app.packageName)
     await saveSetting(APP_ORDER_KEY, order)
     setSavedAppOrder(order)
+  }
+
+  // Save recency bias when it changes
+  const updateRecencyBias = async (packageName: string) => {
+    const newBias = {
+      ...recencyBias,
+      [packageName]: Date.now(),
+    }
+    setRecencyBias(newBias)
+    // await saveSetting(RECENCY_BIAS_KEY, newBias)
   }
 
   // Check onboarding status whenever the screen comes into focus
@@ -142,7 +150,18 @@ export default function InactiveAppList({
 
   // Sort apps based on saved order or default sorting
   const sortApps = (apps: AppInterface[]) => {
-    console.log("sorting apps")
+    // console.log("sorting apps")
+    console.log("recencyBias", recencyBias)
+
+    // first sort alphabetically:
+    // apps = apps.sort((a, b) => a.name.localeCompare(b.name))
+
+    // sort by recency-bias:
+    apps = apps.sort((a, b) => {
+      const aRecencyBias = recencyBias[a.packageName] || 0
+      const bRecencyBias = recencyBias[b.packageName] || 0
+      return bRecencyBias - aRecencyBias // Note: reversed for most recent first
+    })
 
     // first sort so that apps that are on are first:
     apps = apps.sort((a, b) => {
@@ -150,10 +169,6 @@ export default function InactiveAppList({
       if (!a.is_running && b.is_running) return 1
       return 0
     })
-
-    for (const app of apps) {
-      console.log("app", app.name, app.is_running)
-    }
 
     if (!onboardingCompleted) {
       // During onboarding, put Live Captions first
@@ -172,26 +187,6 @@ export default function InactiveAppList({
       // return apps.sort((a, b) => a.name.localeCompare(b.name))
       return apps
     }
-
-    // if (savedAppOrder.length > 0 && onboardingCompleted) {
-    //   // Sort based on saved order
-    //   return apps.sort((a, b) => {
-    //     const aIndex = savedAppOrder.indexOf(a.packageName)
-    //     const bIndex = savedAppOrder.indexOf(b.packageName)
-
-    //     // If both are in saved order, sort by their saved position
-    //     if (aIndex !== -1 && bIndex !== -1) {
-    //       return aIndex - bIndex
-    //     }
-
-    //     // If only one is in saved order, it comes first
-    //     if (aIndex !== -1) return -1
-    //     if (bIndex !== -1) return 1
-
-    //     // If neither are in saved order, sort alphabetically
-    //     return a.name.localeCompare(b.name)
-    //   })
-    // } else
   }
 
   // Add effect to sort apps when appStatus or savedAppOrder changes
@@ -215,7 +210,6 @@ export default function InactiveAppList({
     }
 
     setSortedApps(sorted)
-    setForceReRender(forceReRender + 1)
   }, [appStatus, savedAppOrder, searchQuery])
 
   const completeOnboarding = () => {
@@ -348,60 +342,13 @@ export default function InactiveAppList({
     })
   }
 
-  const animateItemToTop = async (packageName: string) => {
-    const currentIndex = sortedApps.findIndex(app => app.packageName === packageName)
-
-    if (currentIndex === -1 || currentIndex === 0) {
-      return
-    }
-
-    // Create new array with item moved to top
-    const newData = [...sortedApps]
-    const [movedItem] = newData.splice(currentIndex, 1)
-    newData.unshift(movedItem)
-
-    // Update sorted apps state first (triggers animation)
-    setSortedApps(newData)
-
-    // Then save the order
-    await saveAppOrder(newData)
-  }
-
-  const animateItemToBottom = async (packageName: string) => {
-    const currentIndex = sortedApps.findIndex(app => app.packageName === packageName)
-    if (currentIndex === -1) {
-      return
-    }
-
-    // Find first non-running app index
-    const firstNonRunningIndex = sortedApps.findIndex(app => !app.is_running)
-
-    if (firstNonRunningIndex === -1 || currentIndex >= firstNonRunningIndex) {
-      return
-    }
-
-    // Create new array and move item
-    const newData = [...sortedApps]
-    const [movedItem] = newData.splice(currentIndex, 1)
-
-    // Re-find first non-running index after removal
-    const adjustedIndex = newData.findIndex(app => !app.is_running)
-
-    if (adjustedIndex === -1) {
-      newData.push(movedItem)
-    } else {
-      newData.splice(adjustedIndex, 0, movedItem)
-    }
-
-    // Update sorted apps state first (triggers animation)
-    setSortedApps(newData)
-
-    // Then save the order
-    await saveAppOrder(newData)
-  }
-
   const stopApp = async (packageName: string) => {
-    console.log("STOP APP")
+    if (isLoading) {
+      console.log("AppsInactiveList: ", "Still loading!")
+      return
+    }
+
+    updateRecencyBias(packageName)
 
     // Optimistically update UI first
     optimisticallyStopApp(packageName)
@@ -419,13 +366,14 @@ export default function InactiveAppList({
     } finally {
       setIsLoading(false)
     }
-
-    // setTimeout(() => {
-    //   animateItemToBottom(packageName)
-    // }, 2000)
   }
 
   const startApp = async (packageName: string) => {
+    if (isLoading) {
+      console.log("AppsInactiveList: ", "Still loading!")
+      return
+    }
+
     if (!onboardingCompleted) {
       if (packageName !== "com.augmentos.livecaptions" && packageName !== "com.mentra.livecaptions") {
         showAlert(
@@ -497,6 +445,8 @@ export default function InactiveAppList({
       return
     }
 
+    updateRecencyBias(packageName)
+
     // Only update UI optimistically after user confirms and animation completes
     optimisticallyStartApp(packageName)
 
@@ -561,10 +511,6 @@ export default function InactiveAppList({
     } finally {
       setIsLoading(false)
     }
-
-    // setTimeout(() => {
-    //   animateItemToTop(packageName)
-    // }, 2000)
   }
 
   const getRunningStandardApps = (packageName: string) => {
@@ -600,7 +546,7 @@ export default function InactiveAppList({
     const ref = isLiveCaptions ? actualLiveCaptionsRef : null
 
     return (
-      <Animated.View entering={FadeIn.duration(300)} exiting={FadeOut.duration(300)} layout={Layout.springify()}>
+      <Animated.View entering={FadeIn.duration(300)} exiting={FadeOut.duration(300)}>
         <AppListItem
           app={app}
           // @ts-ignore
@@ -695,7 +641,9 @@ export default function InactiveAppList({
         data={sortedApps}
         renderItem={renderItem}
         keyExtractor={keyExtractor}
-        itemLayoutAnimation={LinearTransition.springify(2000).delay(300)}
+        // itemLayoutAnimation={LinearTransition.springify(1500).delay(300)}
+        // itemLayoutAnimation={SequencedTransition.delay(300)}
+        itemLayoutAnimation={LinearTransition.springify(1500).stiffness(300).damping(18).mass(0.7).delay(100)}
         ListFooterComponent={
           <>
             <Spacer height={8} />
