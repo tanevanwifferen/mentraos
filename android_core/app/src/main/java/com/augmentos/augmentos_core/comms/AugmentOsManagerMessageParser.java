@@ -92,6 +92,11 @@ public class AugmentOsManagerMessageParser {
                     callback.setBypassAudioEncodingForDebugging(bypassAudioEncodingForDebugging);
                     break;
 
+                case "enforce_local_transcription":
+                    boolean enforceLocalTranscription = commandObject.getJSONObject("params").getBoolean("enabled");
+                    callback.setEnforceLocalTranscription(enforceLocalTranscription);
+                    break;
+
                 case "enable_always_on_status_bar":
                     boolean alwaysOnEnabled = commandObject.getJSONObject("params").getBoolean("enabled");
                     callback.setAlwaysOnStatusBarEnabled(alwaysOnEnabled);
@@ -201,6 +206,10 @@ public class AugmentOsManagerMessageParser {
                 case "set_preferred_mic":
                     String mic = commandObject.getJSONObject("params").getString("mic");
                     callback.setPreferredMic(mic);
+                    break;
+                case "set_button_mode":
+                    String mode = commandObject.getJSONObject("params").getString("mode");
+                    callback.setButtonMode(mode);
                     break;
 
                 case "audio_play_response":

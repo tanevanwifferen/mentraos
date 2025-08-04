@@ -519,7 +519,7 @@ export default function InactiveAppList({
 
   const openAppSettings = (app: any) => {
     console.log("%%% opening app settings", app)
-    push("/app/settings", {packageName: app.packageName, appName: app.name})
+    push("/applet/settings", {packageName: app.packageName, appName: app.name})
   }
 
   const handleTogglePress = async (app: AppInterface) => {

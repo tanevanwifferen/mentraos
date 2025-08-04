@@ -49,6 +49,7 @@ interface GlassesSettings {
   head_up_angle: number | null // 0-60
   dashboard_height: number
   dashboard_depth: number
+  button_mode?: string
 }
 
 interface WifiConnection {
@@ -84,6 +85,7 @@ export interface CoreInfo {
   is_mic_enabled_for_frontend: boolean
   contextual_dashboard_enabled: boolean
   bypass_vad_for_debugging: boolean
+  enforce_local_transcription: boolean
   bypass_audio_encoding_for_debugging: boolean
   always_on_status_bar_enabled: boolean
   metric_system_enabled: boolean
@@ -117,6 +119,7 @@ export class AugmentOSParser {
       is_mic_enabled_for_frontend: false,
       contextual_dashboard_enabled: false,
       bypass_vad_for_debugging: false,
+      enforce_local_transcription: false,
       bypass_audio_encoding_for_debugging: false,
       default_wearable: null,
       always_on_status_bar_enabled: false,
@@ -130,6 +133,7 @@ export class AugmentOSParser {
       dashboard_height: 4,
       dashboard_depth: 5,
       head_up_angle: 30,
+      button_mode: "photo",
     },
     wifi: {is_connected: false, ssid: "", signal_strength: 0},
     gsm: {is_connected: false, carrier: "", signal_strength: 0},
@@ -156,6 +160,7 @@ export class AugmentOSParser {
       is_mic_enabled_for_frontend: false,
       contextual_dashboard_enabled: true,
       bypass_vad_for_debugging: false,
+      enforce_local_transcription: false,
       bypass_audio_encoding_for_debugging: false,
       default_wearable: "evenrealities_g1",
       always_on_status_bar_enabled: false,
@@ -183,6 +188,7 @@ export class AugmentOSParser {
       dashboard_height: 4,
       dashboard_depth: 5,
       head_up_angle: 20,
+      button_mode: "photo",
     },
     wifi: {is_connected: true, ssid: "TP-LINK69", signal_strength: 100},
     gsm: {is_connected: false, carrier: "", signal_strength: 0},
@@ -222,6 +228,7 @@ export class AugmentOSParser {
           preferred_mic: status.core_info.preferred_mic ?? "glasses",
           contextual_dashboard_enabled: status.core_info.contextual_dashboard_enabled ?? true,
           bypass_vad_for_debugging: status.core_info.bypass_vad_for_debugging ?? false,
+          enforce_local_transcription: status.core_info.enforce_local_transcription ?? false,
           bypass_audio_encoding_for_debugging: status.core_info.bypass_audio_encoding_for_debugging ?? false,
           default_wearable:
             hasConnectedGlasses && !status.core_info.default_wearable
@@ -261,6 +268,7 @@ export class AugmentOSParser {
           dashboard_height: status.glasses_settings.dashboard_height ?? 4,
           dashboard_depth: status.glasses_settings.dashboard_depth ?? 5,
           head_up_angle: status.glasses_settings.head_up_angle ?? 30,
+          button_mode: status.glasses_settings.button_mode ?? "photo",
         },
         wifi: status.wifi ?? AugmentOSParser.defaultStatus.wifi,
         gsm: status.gsm ?? AugmentOSParser.defaultStatus.gsm,

@@ -938,7 +938,7 @@ typealias JSONObject = [String: Any]
         // Always generate BLE ID for potential fallback
         let bleImgId = "I" + String(format: "%09d", Int(Date().timeIntervalSince1970 * 1000) % 100_000_000)
         json["bleImgId"] = bleImgId
-        json["transferMethod"] = "ble"
+        json["transferMethod"] = "auto"
 
         if let webhookUrl = webhookUrl, !webhookUrl.isEmpty {
             json["webhookUrl"] = webhookUrl
@@ -2206,5 +2206,30 @@ extension MentraLiveManager {
         // Extract payload
         let payload = protocolData.subdata(in: 5 ..< (5 + length))
         return payload
+    }
+
+    // MARK: - Button Mode Settings
+
+    func sendButtonModeSetting(_ mode: String) {
+        CoreCommsService.log("Sending button mode setting to glasses: \(mode)")
+
+        guard connectionState == .connected else {
+            CoreCommsService.log("Cannot send button mode - not connected")
+            return
+        }
+
+        let json: [String: Any] = [
+            "type": "button_mode_setting",
+            "mode": mode,
+        ]
+        sendJson(json)
+    }
+
+    private func sendUserSettings() {
+        CoreCommsService.log("Sending user settings to glasses")
+
+        // Send button mode setting
+        let buttonMode = UserDefaults.standard.string(forKey: "button_press_mode") ?? "photo"
+        sendButtonModeSetting(buttonMode)
     }
 }
