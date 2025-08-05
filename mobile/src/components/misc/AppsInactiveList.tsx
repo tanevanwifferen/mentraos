@@ -151,7 +151,7 @@ export default function InactiveAppList({
   // Sort apps based on saved order or default sorting
   const sortApps = (apps: AppInterface[]) => {
     // console.log("sorting apps")
-    console.log("recencyBias", recencyBias)
+    // console.log("recencyBias", recencyBias)
 
     // first sort alphabetically:
     // apps = apps.sort((a, b) => a.name.localeCompare(b.name))
