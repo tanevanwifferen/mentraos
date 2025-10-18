@@ -372,8 +372,7 @@ class SocketComms {
   }
 
   private handle_app_state_change(msg: any) {
-    // console.log("SocketCommsTS: app state change", msg)
-    // this.parse_app_list(msg)
+    // Forward to RN layer; UI will derive and notify native about foreground state
     GlobalEventEmitter.emit("APP_STATE_CHANGE", msg)
   }
 
@@ -629,11 +628,11 @@ class SocketComms {
         break
 
       case "start_buffer_recording":
-        this.handle_start_buffer_recording(msg)
+        this.handle_start_buffer_recording()
         break
 
       case "stop_buffer_recording":
-        this.handle_stop_buffer_recording(msg)
+        this.handle_stop_buffer_recording()
         break
 
       case "save_buffer_video":

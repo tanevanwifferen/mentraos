@@ -44,7 +44,7 @@ class MentraNexSGC: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate {
     private var reconnectionAttempts = 0
     // TODO: change this
     private let maxReconnectionAttempts = -1 // -1 for unlimited
-    private let reconnectionInterval: TimeInterval = 5.0 // 5 seconds
+    private let reconnectionInterval: TimeInterval = 15.0 // 5 seconds
     private var peripheralToConnectName: String?
 
     // Heartbeat tracking (like Java implementation)
@@ -146,7 +146,9 @@ class MentraNexSGC: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate {
     }
 
     // Custom Bluetooth queue for better performance (like G1)
-    private static let _bluetoothQueue = DispatchQueue(label: "com.mentra.nex.bluetooth", qos: .background)
+    private static let _bluetoothQueue = DispatchQueue(
+        label: "com.mentra.nex.bluetooth", qos: .background
+    )
 
     static var instance: MentraNexSGC?
 
@@ -239,7 +241,9 @@ class MentraNexSGC: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate {
             Bridge.log("NEX: 📱 Initial Bluetooth State: \(centralManager.state.rawValue)")
         }
 
-        Bridge.log("NEX: 💾 Loaded saved device - Name: \(savedDeviceName ?? "None"), Address: \(savedDeviceAddress ?? "None")")
+        Bridge.log(
+            "NEX: 💾 Loaded saved device - Name: \(savedDeviceName ?? "None"), Address: \(savedDeviceAddress ?? "None")"
+        )
     }
 
     private func setupCommandQueue() {
@@ -256,14 +260,18 @@ class MentraNexSGC: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate {
     }
 
     private func queueChunks(_ chunks: [[UInt8]], waitTimeMs: Int = 0, chunkDelayMs: Int = 8) {
-        let cmd = BufferedCommand(chunks: chunks, waitTimeMs: waitTimeMs, chunkDelayMs: chunkDelayMs)
+        let cmd = BufferedCommand(
+            chunks: chunks, waitTimeMs: waitTimeMs, chunkDelayMs: chunkDelayMs
+        )
         Task { [weak self] in
             await self?.commandQueue.enqueue(cmd)
         }
     }
 
     // Enhanced method that uses MTU-optimized chunking
-    private func queueDataWithOptimalChunking(_ data: Data, packetType: UInt8 = 0x02, waitTimeMs: Int = 0) {
+    private func queueDataWithOptimalChunking(
+        _ data: Data, packetType: UInt8 = 0x02, waitTimeMs: Int = 0
+    ) {
         var chunks: [[UInt8]] = []
         let effectiveChunkSize = maxChunkSize - 1 // Reserve 1 byte for packet type
 
@@ -280,7 +288,9 @@ class MentraNexSGC: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate {
             offset += chunkSize
         }
 
-        Bridge.log("NEX: 📦 Created \(chunks.count) MTU-optimized chunks (max size: \(effectiveChunkSize) bytes)")
+        Bridge.log(
+            "NEX: 📦 Created \(chunks.count) MTU-optimized chunks (max size: \(effectiveChunkSize) bytes)"
+        )
         queueChunks(chunks, waitTimeMs: waitTimeMs)
     }
 
@@ -301,7 +311,9 @@ class MentraNexSGC: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate {
         // Send each chunk sequentially
         for (index, chunk) in command.chunks.enumerated() {
             let data = Data(chunk)
-            Bridge.log("NEX: 📦 Sending chunk \(index) of \(command.chunks.count) to \(peripheral.name ?? "Unknown")")
+            Bridge.log(
+                "NEX: 📦 Sending chunk \(index) of \(command.chunks.count) to \(peripheral.name ?? "Unknown")"
+            )
             Bridge.log("NEX: 📦 Chunk data: \(data.toHexString())")
             peripheral.writeValue(data, for: writeCharacteristic, type: .withResponse)
 
@@ -324,7 +336,9 @@ class MentraNexSGC: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate {
         savedDeviceAddress = UserDefaults.standard.string(forKey: PREFS_DEVICE_ADDRESS)
         preferredDeviceId = UserDefaults.standard.string(forKey: PREFS_DEVICE_ID)
 
-        Bridge.log("NEX: 💾 Loaded device info - Name: \(savedDeviceName ?? "None"), Address: \(savedDeviceAddress ?? "None"), ID: \(preferredDeviceId ?? "None")")
+        Bridge.log(
+            "NEX: 💾 Loaded device info - Name: \(savedDeviceName ?? "None"), Address: \(savedDeviceAddress ?? "None"), ID: \(preferredDeviceId ?? "None")"
+        )
     }
 
     private func savePairedDeviceInfo(name: String?, address: String?) {
@@ -433,16 +447,20 @@ class MentraNexSGC: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate {
             return false
         }
 
-        Bridge.log("NEX-CONN: 🔵 Attempting to retrieve peripheral with stored UUID: \(uuid.uuidString)")
+        Bridge.log(
+            "NEX-CONN: 🔵 Attempting to retrieve peripheral with stored UUID: \(uuid.uuidString)")
         let peripherals = centralManager.retrievePeripherals(withIdentifiers: [uuid])
 
         if let peripheralToConnect = peripherals.first {
-            Bridge.log("NEX-CONN: 🔵 Found peripheral by UUID: \(peripheralToConnect.name ?? "Unknown"). Initiating connection.")
+            Bridge.log(
+                "NEX-CONN: 🔵 Found peripheral by UUID: \(peripheralToConnect.name ?? "Unknown"). Initiating connection."
+            )
             peripheral = peripheralToConnect
             centralManager.connect(peripheralToConnect, options: nil)
             return true
         } else {
-            Bridge.log("NEX-CONN: 🔵 Could not find peripheral for stored UUID. Will proceed to scan.")
+            Bridge.log(
+                "NEX-CONN: 🔵 Could not find peripheral for stored UUID. Will proceed to scan.")
             return false
         }
     }
@@ -502,7 +520,8 @@ class MentraNexSGC: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate {
         }
 
         guard centralManager.state == .poweredOn else {
-            Bridge.log("NEX-CONN: ❌ Bluetooth not powered on. State: \(centralManager.state.rawValue)")
+            Bridge.log(
+                "NEX-CONN: ❌ Bluetooth not powered on. State: \(centralManager.state.rawValue)")
             return
         }
 
@@ -513,9 +532,17 @@ class MentraNexSGC: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate {
         }
 
         // If that fails, check for already-connected system devices
-        let connectedPeripherals = centralManager.retrieveConnectedPeripherals(withServices: [MAIN_SERVICE_UUID])
-        if let targetName = peripheralToConnectName, let existingPeripheral = connectedPeripherals.first(where: { $0.name?.contains(targetName) == true }) {
-            Bridge.log("NEX-CONN: 📱 Found already connected peripheral that matches target: \(existingPeripheral.name ?? "Unknown")")
+        let connectedPeripherals = centralManager.retrieveConnectedPeripherals(withServices: [
+            MAIN_SERVICE_UUID,
+        ])
+        if let targetName = peripheralToConnectName,
+           let existingPeripheral = connectedPeripherals.first(where: {
+               $0.name?.contains(targetName) == true
+           })
+        {
+            Bridge.log(
+                "NEX-CONN: 📱 Found already connected peripheral that matches target: \(existingPeripheral.name ?? "Unknown")"
+            )
             if peripheral == nil {
                 peripheral = existingPeripheral
                 centralManager.connect(existingPeripheral, options: nil)
@@ -524,7 +551,9 @@ class MentraNexSGC: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate {
         }
 
         // Check if we have a saved device name to reconnect to (like MentraLive)
-        if let savedDeviceName = UserDefaults.standard.string(forKey: PREFS_DEVICE_NAME), !savedDeviceName.isEmpty {
+        if let savedDeviceName = UserDefaults.standard.string(forKey: PREFS_DEVICE_NAME),
+           !savedDeviceName.isEmpty
+        {
             Bridge.log("NEX-CONN: 🔄 Looking for saved device: \(savedDeviceName)")
             // This will be handled in didDiscover when the device is found
         }
@@ -543,7 +572,8 @@ class MentraNexSGC: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate {
 
         // Re-emit already discovered peripherals (like MentraLive)
         for (_, peripheral) in discoveredPeripherals {
-            Bridge.log("NEX-CONN: 📡 (Re-emitting from cache) peripheral: \(peripheral.name ?? "Unknown")")
+            Bridge.log(
+                "NEX-CONN: 📡 (Re-emitting from cache) peripheral: \(peripheral.name ?? "Unknown")")
             if let name = peripheral.name {
                 emitDiscoveredDevice(name)
             }
@@ -611,7 +641,10 @@ class MentraNexSGC: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate {
 
         Task {
             if centralManager == nil {
-                centralManager = CBCentralManager(delegate: self, queue: bluetoothQueue, options: ["CBCentralManagerOptionShowPowerAlertKey": 0])
+                centralManager = CBCentralManager(
+                    delegate: self, queue: bluetoothQueue,
+                    options: ["CBCentralManagerOptionShowPowerAlertKey": 0]
+                )
                 // wait for the central manager to be fully initialized before we start scanning:
                 try? await Task.sleep(nanoseconds: 100 * 1_000_000) // 100ms
             }
@@ -759,7 +792,9 @@ class MentraNexSGC: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate {
         }
 
         let protobufData = try! phoneToGlasses.serializedData()
-        queueDataWithOptimalChunking(protobufData, packetType: PACKET_TYPE_PROTOBUF, waitTimeMs: 100)
+        queueDataWithOptimalChunking(
+            protobufData, packetType: PACKET_TYPE_PROTOBUF, waitTimeMs: 100
+        )
 
         // Send image chunks
         sendImageChunks(streamId: streamId, imageData: bmpData)
@@ -803,15 +838,17 @@ class MentraNexSGC: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate {
         var pixelData = Data(count: width * height * bytesPerPixel)
 
         pixelData.withUnsafeMutableBytes { bytes in
-            guard let context = CGContext(
-                data: bytes.bindMemory(to: UInt8.self).baseAddress,
-                width: width,
-                height: height,
-                bitsPerComponent: bitsPerComponent,
-                bytesPerRow: bytesPerRow,
-                space: CGColorSpaceCreateDeviceRGB(),
-                bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
-            ) else { return }
+            guard
+                let context = CGContext(
+                    data: bytes.bindMemory(to: UInt8.self).baseAddress,
+                    width: width,
+                    height: height,
+                    bitsPerComponent: bitsPerComponent,
+                    bytesPerRow: bytesPerRow,
+                    space: CGColorSpaceCreateDeviceRGB(),
+                    bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+                )
+            else { return }
 
             context.draw(cgImage, in: CGRect(x: 0, y: 0, width: width, height: height))
         }
@@ -1207,7 +1244,9 @@ class MentraNexSGC: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate {
     }
 
     private func processAudioData(_ audioData: Data, sequenceNumber: UInt8) {
-        Bridge.log("NEX: Received audio data - sequence: \(sequenceNumber), size: \(audioData.count) bytes")
+        Bridge.log(
+            "NEX: Received audio data - sequence: \(sequenceNumber), size: \(audioData.count) bytes"
+        )
 
         // Update @Published property (G1-compatible approach)
         // Create packet with sequence number prefix like G1 expects
@@ -1314,7 +1353,9 @@ class MentraNexSGC: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate {
         aiListening = vadActiveState // Mirror G1's aiListening behavior
     }
 
-    private func handleImageTransferCompleteProtobuf(_ transferComplete: Mentraos_Ble_ImageTransferComplete) {
+    private func handleImageTransferCompleteProtobuf(
+        _ transferComplete: Mentraos_Ble_ImageTransferComplete
+    ) {
         let status = transferComplete.status
         let missingChunks = transferComplete.missingChunks
 
@@ -1323,11 +1364,11 @@ class MentraNexSGC: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate {
         switch status {
         case .ok:
             Bridge.log("NEX: Image transfer completed successfully")
-            // Clear any pending image chunks
+        // Clear any pending image chunks
 
         case .incomplete:
             Bridge.log("NEX: Image transfer incomplete - Missing chunks: \(missingChunks)")
-            // Could implement chunk retransmission here
+        // Could implement chunk retransmission here
 
         default:
             Bridge.log("NEX: Unknown image transfer status")
@@ -1540,7 +1581,8 @@ class MentraNexSGC: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate {
         micBeatCount += 1
 
         // Schedule periodic mic beat (like Java lines 1753-1762)
-        micBeatTimer = Timer.scheduledTimer(withTimeInterval: MICBEAT_INTERVAL_MS, repeats: true) { [weak self] _ in
+        micBeatTimer = Timer.scheduledTimer(withTimeInterval: MICBEAT_INTERVAL_MS, repeats: true) {
+            [weak self] _ in
             guard let self else { return }
             Bridge.log("NEX: SENDING MIC BEAT")
             self.setMicrophoneEnabled(self.shouldUseGlassesMic)
@@ -1779,7 +1821,9 @@ class MentraNexSGC: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate {
             case .poweredOn:
                 Bridge.log("NEX: ✅ Bluetooth is ready for scanning")
 
-                if let savedDeviceName = UserDefaults.standard.string(forKey: PREFS_DEVICE_NAME), !savedDeviceName.isEmpty {
+                if let savedDeviceName = UserDefaults.standard.string(forKey: PREFS_DEVICE_NAME),
+                   !savedDeviceName.isEmpty
+                {
                     Bridge.log("NEX: 🔄 Looking for saved device: \(savedDeviceName)")
                     // This will be handled in didDiscover when the device is found
                     startScan()
@@ -1834,7 +1878,10 @@ class MentraNexSGC: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate {
         }
     }
 
-    func centralManager(_: CBCentralManager, didDiscover peripheral: CBPeripheral, advertisementData _: [String: Any], rssi RSSI: NSNumber) {
+    func centralManager(
+        _: CBCentralManager, didDiscover peripheral: CBPeripheral,
+        advertisementData _: [String: Any], rssi RSSI: NSNumber
+    ) {
         guard let deviceName = peripheral.name else {
             // Bridge.log("NEX-CONN: 🚫 Ignoring device with no name")
             return
@@ -1886,11 +1933,15 @@ class MentraNexSGC: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate {
 
     private func connectToFoundDevice(_ peripheral: CBPeripheral, reason: String) {
         guard self.peripheral == nil else {
-            Bridge.log("NEX-CONN: ⚠️ Already connected/connecting to a device, ignoring new connect request for '\(peripheral.name ?? "Unknown")'")
+            Bridge.log(
+                "NEX-CONN: ⚠️ Already connected/connecting to a device, ignoring new connect request for '\(peripheral.name ?? "Unknown")'"
+            )
             return
         }
 
-        Bridge.log("NEX-CONN: 🔗 Connecting to device '\(peripheral.name ?? "Unknown")' - Reason: \(reason)")
+        Bridge.log(
+            "NEX-CONN: 🔗 Connecting to device '\(peripheral.name ?? "Unknown")' - Reason: \(reason)"
+        )
 
         // Stop scanning since we found our target
         if _isScanning {
@@ -1942,8 +1993,12 @@ class MentraNexSGC: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate {
         Bridge.log("NEX-CONN: 🔄 Reset reconnection attempts counter")
     }
 
-    func centralManager(_: CBCentralManager, didFailToConnect peripheral: CBPeripheral, error: Error?) {
-        Bridge.log("NEX-CONN: ❌ Failed to connect to peripheral \(peripheral.name ?? "Unknown"). Error: \(error?.localizedDescription ?? "unknown")")
+    func centralManager(
+        _: CBCentralManager, didFailToConnect peripheral: CBPeripheral, error: Error?
+    ) {
+        Bridge.log(
+            "NEX-CONN: ❌ Failed to connect to peripheral \(peripheral.name ?? "Unknown"). Error: \(error?.localizedDescription ?? "unknown")"
+        )
         isConnecting = false
         connectionState = .disconnected
         self.peripheral = nil // Reset peripheral on failure to allow reconnection
@@ -1953,8 +2008,12 @@ class MentraNexSGC: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate {
         }
     }
 
-    func centralManager(_: CBCentralManager, didDisconnectPeripheral disconnectedPeripheral: CBPeripheral, error: Error?) {
-        Bridge.log("NEX-CONN: 🔌 Disconnected from peripheral: \(disconnectedPeripheral.name ?? "Unknown")")
+    func centralManager(
+        _: CBCentralManager, didDisconnectPeripheral disconnectedPeripheral: CBPeripheral,
+        error: Error?
+    ) {
+        Bridge.log(
+            "NEX-CONN: 🔌 Disconnected from peripheral: \(disconnectedPeripheral.name ?? "Unknown")")
 
         if let error {
             Bridge.log("NEX-CONN: ⚠️ Disconnect error: \(error.localizedDescription)")
@@ -2008,7 +2067,9 @@ class MentraNexSGC: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate {
 
             startReconnectionTimer()
         } else {
-            Bridge.log("NEX-CONN: ✅ Intentional disconnect (isDisconnecting: \(isDisconnecting), isKilled: \(isKilled))")
+            Bridge.log(
+                "NEX-CONN: ✅ Intentional disconnect (isDisconnecting: \(isDisconnecting), isKilled: \(isKilled))"
+            )
 
             if isDisconnecting {
                 // Don't clear device info on intentional disconnect - user might reconnect later
@@ -2114,7 +2175,8 @@ class MentraNexSGC: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate {
 
         // 2. Restore previous microphone state (Java lines 657-665)
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.02) { // 20ms delay
-            let shouldRestoreMic = UserDefaults.standard.bool(forKey: "microphoneStateBeforeDisconnection")
+            let shouldRestoreMic = UserDefaults.standard.bool(
+                forKey: "microphoneStateBeforeDisconnection")
             Bridge.log("NEX: 🎤 Restoring microphone state to: \(shouldRestoreMic)")
 
             if shouldRestoreMic {
@@ -2177,14 +2239,19 @@ class MentraNexSGC: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate {
         for service in services {
             if service.uuid == MAIN_SERVICE_UUID {
                 Bridge.log("NEX-CONN: ✅ Found main service. Discovering characteristics...")
-                peripheral.discoverCharacteristics([WRITE_CHAR_UUID, NOTIFY_CHAR_UUID], for: service)
+                peripheral.discoverCharacteristics(
+                    [WRITE_CHAR_UUID, NOTIFY_CHAR_UUID], for: service
+                )
             }
         }
     }
 
-    func peripheral(_ peripheral: CBPeripheral, didDiscoverCharacteristicsFor service: CBService, error: Error?) {
+    func peripheral(
+        _ peripheral: CBPeripheral, didDiscoverCharacteristicsFor service: CBService, error: Error?
+    ) {
         if let error {
-            Bridge.log("NEX-CONN: ❌ Error discovering characteristics: \(error.localizedDescription)")
+            Bridge.log(
+                "NEX-CONN: ❌ Error discovering characteristics: \(error.localizedDescription)")
             return
         }
 
@@ -2197,21 +2264,26 @@ class MentraNexSGC: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate {
                 Bridge.log("NEX-CONN: ✅ Found write characteristic.")
                 writeCharacteristic = characteristic
             } else if characteristic.uuid == NOTIFY_CHAR_UUID {
-                Bridge.log("NEX-CONN: ✅ Found notify characteristic. Subscribing for notifications.")
+                Bridge.log(
+                    "NEX-CONN: ✅ Found notify characteristic. Subscribing for notifications.")
                 notifyCharacteristic = characteristic
                 peripheral.setNotifyValue(true, for: characteristic)
             }
         }
 
         if writeCharacteristic != nil, notifyCharacteristic != nil {
-            Bridge.log("NEX-CONN: ✅ All required characteristics discovered. Proceeding to MTU negotiation.")
+            Bridge.log(
+                "NEX-CONN: ✅ All required characteristics discovered. Proceeding to MTU negotiation."
+            )
 
             // Start MTU negotiation like Java implementation
             requestOptimalMTU(for: peripheral)
         }
     }
 
-    func peripheral(_: CBPeripheral, didUpdateValueFor characteristic: CBCharacteristic, error: Error?) {
+    func peripheral(
+        _: CBPeripheral, didUpdateValueFor characteristic: CBCharacteristic, error: Error?
+    ) {
         if let error {
             Bridge.log("NEX-CONN: ❌ Error on updating value: \(error.localizedDescription)")
             return
@@ -2227,25 +2299,38 @@ class MentraNexSGC: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate {
         processReceivedData(data)
     }
 
-    func peripheral(_: CBPeripheral, didWriteValueFor characteristic: CBCharacteristic, error: Error?) {
+    func peripheral(
+        _: CBPeripheral, didWriteValueFor characteristic: CBCharacteristic, error: Error?
+    ) {
         if let error {
-            Bridge.log("NEX-CONN: ❌ Error writing value to \(characteristic.uuid): \(error.localizedDescription)")
+            Bridge.log(
+                "NEX-CONN: ❌ Error writing value to \(characteristic.uuid): \(error.localizedDescription)"
+            )
             return
         }
         // This log can be very noisy, so it's commented out.
         // Bridge.log("NEX-CONN: 📤 Successfully wrote value to \(characteristic.uuid).")
     }
 
-    func peripheral(_: CBPeripheral, didUpdateNotificationStateFor characteristic: CBCharacteristic, error: Error?) {
+    func peripheral(
+        _: CBPeripheral, didUpdateNotificationStateFor characteristic: CBCharacteristic,
+        error: Error?
+    ) {
         if let error {
-            Bridge.log("NEX-CONN: ❌ Error changing notification state for \(characteristic.uuid): \(error.localizedDescription)")
+            Bridge.log(
+                "NEX-CONN: ❌ Error changing notification state for \(characteristic.uuid): \(error.localizedDescription)"
+            )
             return
         }
 
         if characteristic.isNotifying {
-            Bridge.log("NEX-CONN: ✅ Successfully subscribed to notifications for characteristic \(characteristic.uuid.uuidString).")
+            Bridge.log(
+                "NEX-CONN: ✅ Successfully subscribed to notifications for characteristic \(characteristic.uuid.uuidString)."
+            )
         } else {
-            Bridge.log("NEX-CONN:  unsubscribed from notifications for characteristic \(characteristic.uuid.uuidString).")
+            Bridge.log(
+                "NEX-CONN:  unsubscribed from notifications for characteristic \(characteristic.uuid.uuidString)."
+            )
         }
     }
 }

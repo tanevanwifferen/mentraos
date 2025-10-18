@@ -37,6 +37,7 @@ export const AppStatusProvider = ({children}: {children: ReactNode}) => {
   const pendingOperations = useRef<{[packageName: string]: "start" | "stop"}>({})
   // Keep track of refresh timeouts to cancel them
   const refreshTimeouts = useRef<{[packageName: string]: NodeJS.Timeout}>({})
+  const foregroundStateSent = useRef<boolean | null>(null)
 
   const refreshAppStatus = useCallback(async () => {
     console.log("AppStatusProvider: refreshAppStatus called - user exists:", !!user, "user email:", user?.email)
@@ -459,14 +460,53 @@ export const AppStatusProvider = ({children}: {children: ReactNode}) => {
     }
   }, [appStatus, optimisticallyStartApp])
 
-  // refresh app status until loaded:
+  // Refresh app status lazily with exponential backoff until loaded; also react to CORE_TOKEN_SET
   useEffect(() => {
     if (appStatus.length > 0) return
-    const interval = setInterval(() => {
-      refreshAppStatus()
-    }, 2000)
-    return () => clearInterval(interval)
-  }, [appStatus.length])
+
+    let cancelled = false
+    let timeout: NodeJS.Timeout | null = null
+    let delay = 5000 // start at 5s, back off to reduce radio wakeups
+
+    const tryRefresh = async () => {
+      if (cancelled) return
+      await refreshAppStatus()
+      if (cancelled || appStatus.length > 0) return
+      delay = Math.min(delay * 2, 30000) // cap at 30s
+      timeout = setTimeout(tryRefresh, delay)
+    }
+
+    // Initial attempt
+    timeout = setTimeout(tryRefresh, delay)
+
+    const onCoreTokenSet = () => {
+      if (cancelled) return
+      // Reset delay and try immediately when token becomes available
+      delay = 5000
+      if (timeout) clearTimeout(timeout)
+      tryRefresh()
+    }
+
+    // @ts-ignore
+    GlobalEventEmitter.on("CORE_TOKEN_SET", onCoreTokenSet)
+
+    return () => {
+      cancelled = true
+      if (timeout) clearTimeout(timeout)
+      // @ts-ignore
+      GlobalEventEmitter.off("CORE_TOKEN_SET", onCoreTokenSet)
+    }
+  }, [appStatus.length, refreshAppStatus])
+
+  // Notify native only when the foreground-open state changes
+  useEffect(() => {
+    const anyForegroundOpen = appStatus.some(app => (app.type === "standard" || !app.type) && app.is_running)
+    if (foregroundStateSent.current !== anyForegroundOpen) {
+      foregroundStateSent.current = anyForegroundOpen
+      // Handled by Bridge.swift -> MentraManager.setForegroundAppOpen
+      bridge.sendCommand("set_foreground_app_open", {active: anyForegroundOpen})
+    }
+  }, [appStatus])
 
   // Watch camera app state and send gallery mode updates to glasses (Android only)
   useEffect(() => {

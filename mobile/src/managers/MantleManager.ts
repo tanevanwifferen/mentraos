@@ -9,22 +9,38 @@ import bridge from "@/bridge/MantleBridge"
 
 const LOCATION_TASK_NAME = "handleLocationUpdates"
 
-TaskManager.defineTask(LOCATION_TASK_NAME, ({data: {locations}, error}) => {
-  if (error) {
-    // check `error.message` for more details.
-    console.error("Error handling location updates", error)
-    return
-  }
-  const locs = locations as Location.LocationObject[]
-  if (locs.length === 0) {
-    console.log("Mantle: LOCATION: No locations received")
-    return
-  }
+TaskManager.defineTask(
+  LOCATION_TASK_NAME,
+  async ({data, error}: TaskManager.TaskManagerTaskBody<{locations: Location.LocationObject[]}>) => {
+    if (error) {
+      // check `error.message` for more details.
+      console.error("Error handling location updates", error)
+      return
+    }
+    const locs = (data?.locations ?? []) as Location.LocationObject[]
+    if (!locs || locs.length === 0) {
+      console.log("Mantle: LOCATION: No locations received")
+      return
+    }
 
-  console.log("Received new locations", locations)
-  const first = locs[0]!
-  socketComms.sendLocationUpdate(first.coords.latitude, first.coords.longitude, first.coords.accuracy ?? undefined)
-})
+    console.log("Received new locations", data?.locations)
+    const first = locs[0]!
+
+    const mm = MantleManager.getInstance()
+    // Update cache if we got a good fix
+    mm.updateLocationCacheIfGood(first)
+
+    // Choose the best location to send (prefer cached good fix within TTL)
+    const best = mm.getBestLocationForSend(first)
+    if (!best) {
+      console.log("Mantle: LOCATION: No best location available to send")
+      return
+    }
+
+    const {coords} = best
+    socketComms.sendLocationUpdate(coords.latitude, coords.longitude, coords.accuracy ?? undefined)
+  },
+)
 
 class MantleManager {
   private static instance: MantleManager | null = null
@@ -34,6 +50,17 @@ class MantleManager {
   private clearTextTimeout: NodeJS.Timeout | null = null
   private readonly MAX_CHARS_PER_LINE = 30
   private readonly MAX_LINES = 3
+  private locationUpdatesActive = false
+  private locationUpdatesStarting = false
+  private locationUpdatesStopping = false
+  private wantLocationUpdates = false
+  private isHeadUp = false
+  private cachedLocationTier: string | null = null
+  private locationUpdatesMode: "head_up" | "always_on" = "head_up"
+  // Cache a good GPS lock for 5 minutes to avoid degrading to worse fixes
+  private lastGoodLocation: {latitude: number; longitude: number; accuracy?: number; timestamp: number} | null = null
+  private readonly GOOD_ACCURACY_METERS = 50
+  private readonly CACHE_TTL_MS = 5 * 60 * 1000
 
   public static getInstance(): MantleManager {
     if (!MantleManager.instance) {
@@ -66,7 +93,9 @@ class MantleManager {
       clearInterval(this.calendarSyncTimer)
       this.calendarSyncTimer = null
     }
-    Location.stopLocationUpdatesAsync(LOCATION_TASK_NAME)
+    this.wantLocationUpdates = false
+    this.isHeadUp = false
+    void this.stopLocationUpdatesIfNeeded()
     this.transcriptProcessor.clear()
   }
 
@@ -80,13 +109,30 @@ class MantleManager {
       60 * 60 * 1000,
     ) // 1 hour
     try {
-      let locationAccuracy = await useSettingsStore.getState().loadSetting(SETTINGS_KEYS.location_tier)
-      let properAccuracy = this.getLocationAccuracy(locationAccuracy)
-      Location.startLocationUpdatesAsync(LOCATION_TASK_NAME, {
-        accuracy: properAccuracy,
-      })
+      const storedTier = await useSettingsStore.getState().loadSetting(SETTINGS_KEYS.location_tier)
+      this.cachedLocationTier = typeof storedTier === "string" ? storedTier : null
     } catch (error) {
-      console.error("Mantle: Error starting location updates", error)
+      console.error("Mantle: Error loading location tier", error)
+      this.cachedLocationTier = null
+    }
+
+    try {
+      const hasStarted = await Location.hasStartedLocationUpdatesAsync(LOCATION_TASK_NAME)
+      if (hasStarted) {
+        await Location.stopLocationUpdatesAsync(LOCATION_TASK_NAME)
+      }
+      this.locationUpdatesActive = false
+      this.wantLocationUpdates = false
+    } catch (error) {
+      console.error("Mantle: Error stopping existing location updates", error)
+    }
+
+    try {
+      const storedMode = await useSettingsStore.getState().loadSetting(SETTINGS_KEYS.location_updates_mode)
+      await this.applyLocationUpdatesMode(typeof storedMode === "string" ? storedMode : null)
+    } catch (error) {
+      console.error("Mantle: Error applying location updates mode", error)
+      await this.applyLocationUpdatesMode(null)
     }
   }
 
@@ -112,6 +158,165 @@ class MantleManager {
     // socketComms.sendLocationUpdate(location)
   }
 
+  private async resolveLocationTier(): Promise<string | null> {
+    if (this.cachedLocationTier === null) {
+      try {
+        const storedTier = await useSettingsStore.getState().loadSetting(SETTINGS_KEYS.location_tier)
+        this.cachedLocationTier = typeof storedTier === "string" ? storedTier : null
+      } catch (error) {
+        console.error("Mantle: Error resolving location tier", error)
+        this.cachedLocationTier = null
+      }
+    }
+
+    return this.cachedLocationTier
+  }
+
+  private async buildLocationTaskOptions(): Promise<Location.LocationTaskOptions> {
+    const tier = await this.resolveLocationTier()
+    const accuracy = this.getLocationAccuracy(tier ?? "")
+    return {
+      accuracy,
+      pausesUpdatesAutomatically: false,
+    }
+  }
+
+  // Location cache helpers
+  private isGoodAccuracy(accuracy?: number | null): boolean {
+    return typeof accuracy === "number" && accuracy > 0 && accuracy <= this.GOOD_ACCURACY_METERS
+  }
+
+  private isCacheFresh(): boolean {
+    return this.lastGoodLocation !== null && Date.now() - this.lastGoodLocation.timestamp <= this.CACHE_TTL_MS
+  }
+
+  public getCachedLocation(): {latitude: number; longitude: number; accuracy?: number} | null {
+    if (this.lastGoodLocation && this.isCacheFresh()) {
+      const {latitude, longitude, accuracy} = this.lastGoodLocation
+      return {latitude, longitude, accuracy}
+    }
+    return null
+  }
+
+  public updateLocationCacheIfGood(loc?: Location.LocationObject | null): void {
+    if (!loc) return
+    const acc = loc.coords.accuracy
+    if (this.isGoodAccuracy(acc)) {
+      this.lastGoodLocation = {
+        latitude: loc.coords.latitude,
+        longitude: loc.coords.longitude,
+        accuracy: acc ?? undefined,
+        timestamp: Date.now(),
+      }
+    }
+  }
+
+  // Prefer a fresh cached good fix over a newly delivered poor fix.
+  // Fallback order: good new fix -> fresh cached good fix -> any new fix -> null
+  public getBestLocationForSend(
+    newLoc?: Location.LocationObject | null,
+  ): {coords: {latitude: number; longitude: number; accuracy?: number}; fromCache: boolean} | null {
+    if (newLoc && this.isGoodAccuracy(newLoc.coords.accuracy ?? undefined)) {
+      return {
+        coords: {
+          latitude: newLoc.coords.latitude,
+          longitude: newLoc.coords.longitude,
+          accuracy: newLoc.coords.accuracy ?? undefined,
+        },
+        fromCache: false,
+      }
+    }
+
+    const cached = this.getCachedLocation()
+    if (cached) {
+      return {coords: cached, fromCache: true}
+    }
+
+    if (newLoc) {
+      // No fresh good cache and new fix is not "good", but still send something if available
+      return {
+        coords: {
+          latitude: newLoc.coords.latitude,
+          longitude: newLoc.coords.longitude,
+          accuracy: newLoc.coords.accuracy ?? undefined,
+        },
+        fromCache: false,
+      }
+    }
+
+    return null
+  }
+
+  private async applyLocationUpdatesMode(mode: string | null) {
+    const normalized: "head_up" | "always_on" = mode === "always_on" ? "always_on" : "head_up"
+    this.locationUpdatesMode = normalized
+    const shouldWantUpdates = normalized === "always_on" || (normalized === "head_up" && this.isHeadUp)
+    this.wantLocationUpdates = shouldWantUpdates
+
+    if (shouldWantUpdates) {
+      await this.startLocationUpdatesIfNeeded()
+    } else {
+      await this.stopLocationUpdatesIfNeeded()
+    }
+  }
+
+  private async startLocationUpdatesIfNeeded() {
+    if (!this.wantLocationUpdates) {
+      return
+    }
+    if (this.locationUpdatesActive || this.locationUpdatesStarting) {
+      return
+    }
+
+    this.locationUpdatesStarting = true
+    try {
+      const options = await this.buildLocationTaskOptions()
+      if (!this.wantLocationUpdates) {
+        return
+      }
+
+      await Location.startLocationUpdatesAsync(LOCATION_TASK_NAME, options)
+      this.locationUpdatesActive = true
+    } catch (error) {
+      console.error("Mantle: Error starting location updates", error)
+      this.locationUpdatesActive = false
+    } finally {
+      this.locationUpdatesStarting = false
+    }
+  }
+
+  private async stopLocationUpdatesIfNeeded() {
+    if (this.locationUpdatesStopping) {
+      return
+    }
+
+    this.locationUpdatesStopping = true
+    try {
+      const hasStarted = await Location.hasStartedLocationUpdatesAsync(LOCATION_TASK_NAME)
+      if (hasStarted) {
+        await Location.stopLocationUpdatesAsync(LOCATION_TASK_NAME)
+      }
+      this.locationUpdatesActive = false
+    } catch (error) {
+      console.error("Mantle: Error stopping location updates", error)
+    } finally {
+      this.locationUpdatesStopping = false
+      this.locationUpdatesStarting = false
+    }
+  }
+
+  private async restartLocationUpdatesIfNeeded() {
+    if (!this.wantLocationUpdates) {
+      return
+    }
+    await this.stopLocationUpdatesIfNeeded()
+    await this.startLocationUpdatesIfNeeded()
+  }
+
+  public async setLocationUpdatesMode(mode: string) {
+    await this.applyLocationUpdatesMode(mode)
+  }
+
   public getLocationAccuracy(accuracy: string) {
     switch (accuracy) {
       case "realtime":
@@ -134,32 +339,52 @@ class MantleManager {
 
   public async setLocationTier(tier: string) {
     console.log("Mantle: setLocationTier()", tier)
-    // restComms.sendLocationData({tier})
-    try {
-      const accuracy = this.getLocationAccuracy(tier)
-      await Location.stopLocationUpdatesAsync(LOCATION_TASK_NAME)
-      await Location.startLocationUpdatesAsync(LOCATION_TASK_NAME, {
-        accuracy: accuracy,
-        pausesUpdatesAutomatically: false,
-      })
-    } catch (error) {
-      console.error("Mantle: Error setting location tier", error)
+    this.cachedLocationTier = tier
+    if (this.wantLocationUpdates) {
+      await this.restartLocationUpdatesIfNeeded()
     }
   }
 
   public async requestSingleLocation(accuracy: string, correlationId: string) {
     console.log("Mantle: requestSingleLocation()")
-    // restComms.sendLocationData({tier})
     try {
+      // If we have a fresh good fix cached, use it immediately
+      const cached = this.getCachedLocation()
+      if (cached) {
+        socketComms.sendLocationUpdate(cached.latitude, cached.longitude, cached.accuracy ?? undefined, correlationId)
+        return
+      }
+
+      // Otherwise fetch a new fix, update cache if good, then choose best to send
       const location = await Location.getCurrentPositionAsync({accuracy: this.getLocationAccuracy(accuracy)})
+      this.updateLocationCacheIfGood(location)
+      const best = this.getBestLocationForSend(location)
+      if (!best) return
+
       socketComms.sendLocationUpdate(
-        location.coords.latitude,
-        location.coords.longitude,
-        location.coords.accuracy ?? undefined,
+        best.coords.latitude,
+        best.coords.longitude,
+        best.coords.accuracy ?? undefined,
         correlationId,
       )
     } catch (error) {
       console.error("Mantle: Error requesting single location", error)
+    }
+  }
+
+  public async handleHeadPosition(isUp: boolean) {
+    this.isHeadUp = isUp
+    if (this.locationUpdatesMode === "always_on") {
+      this.wantLocationUpdates = true
+      await this.startLocationUpdatesIfNeeded()
+      return
+    }
+
+    this.wantLocationUpdates = isUp
+    if (isUp) {
+      await this.startLocationUpdatesIfNeeded()
+    } else {
+      await this.stopLocationUpdatesIfNeeded()
     }
   }
 

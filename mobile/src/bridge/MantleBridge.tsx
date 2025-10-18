@@ -441,9 +441,12 @@ export class MantleBridge extends EventEmitter {
         case "save_setting":
           await useSettingsStore.getState().setSetting(data.key, data.value, false)
           break
-        case "head_up":
-          socketComms.sendHeadPosition(data.position)
+        case "head_up": {
+          const isHeadUp = !!data.position
+          void mantle.handleHeadPosition(isHeadUp)
+          socketComms.sendHeadPosition(isHeadUp)
           break
+        }
         // TODO: config: remove (this is legacy/android only)
         case "transcription_result":
           mantle.handleLocalTranscription(data)
@@ -468,10 +471,9 @@ export class MantleBridge extends EventEmitter {
           for (let i = 0; i < binaryString.length; i++) {
             bytes[i] = binaryString.charCodeAt(i)
           }
+          socketComms.sendBinary(bytes)
           if (livekitManager.isRoomConnected()) {
             livekitManager.addPcm(bytes)
-          } else {
-            socketComms.sendBinary(bytes)
           }
           break
         case "rtmp_stream_status":

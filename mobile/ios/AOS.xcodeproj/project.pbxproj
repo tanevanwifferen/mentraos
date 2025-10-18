@@ -52,6 +52,11 @@
 		C5DE98972DE267CD0032FC99 /* Bridge.m in Sources */ = {isa = PBXBuildFile; fileRef = C5DE98952DE267CD0032FC99 /* Bridge.m */; };
 		C5DE98982DE267CD0032FC99 /* Bridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = C5DE98962DE267CD0032FC99 /* Bridge.swift */; };
 		C5F7A1012E6C111500123456 /* libbz2.tbd in Frameworks */ = {isa = PBXBuildFile; fileRef = C5F7A1002E6C111500123456 /* libbz2.tbd */; };
+		E1A4F0A13E6B4B8800F1AA01 /* MentraManager+Head.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1A4F0A03E6B4B8800F1AA01 /* MentraManager+Head.swift */; };
+		E1A4F0A33E6B4B8800F1AA01 /* MentraManager+Mic.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1A4F0A23E6B4B8800F1AA01 /* MentraManager+Mic.swift */; };
+		E1A4F0A53E6B4B8800F1AA01 /* MentraManager+Display.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1A4F0A43E6B4B8800F1AA01 /* MentraManager+Display.swift */; };
+		E1A4F0A73E6B4B8800F1AA01 /* MentraManager+Device.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1A4F0A63E6B4B8800F1AA01 /* MentraManager+Device.swift */; };
+		E1A4F0A93E6B4B8800F1AA01 /* MentraManager+Status.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1A4F0A83E6B4B8800F1AA01 /* MentraManager+Status.swift */; };
 		F314884EB5724196A394670E /* noop-file.swift in Sources */ = {isa = PBXBuildFile; fileRef = 14C4353E097941A5AC9B6A09 /* noop-file.swift */; };
 /* End PBXBuildFile section */
 
@@ -128,6 +133,11 @@
 		C5DE98952DE267CD0032FC99 /* Bridge.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = Bridge.m; sourceTree = "<group>"; };
 		C5DE98962DE267CD0032FC99 /* Bridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Bridge.swift; sourceTree = "<group>"; };
 		C5F7A1002E6C111500123456 /* libbz2.tbd */ = {isa = PBXFileReference; lastKnownFileType = "sourcecode.text-based-dylib-definition"; name = libbz2.tbd; path = usr/lib/libbz2.tbd; sourceTree = SDKROOT; };
+		E1A4F0A03E6B4B8800F1AA01 /* MentraManager+Head.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "MentraManager+Head.swift"; sourceTree = "<group>"; };
+		E1A4F0A23E6B4B8800F1AA01 /* MentraManager+Mic.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "MentraManager+Mic.swift"; sourceTree = "<group>"; };
+		E1A4F0A43E6B4B8800F1AA01 /* MentraManager+Display.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "MentraManager+Display.swift"; sourceTree = "<group>"; };
+		E1A4F0A63E6B4B8800F1AA01 /* MentraManager+Device.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "MentraManager+Device.swift"; sourceTree = "<group>"; };
+		E1A4F0A83E6B4B8800F1AA01 /* MentraManager+Status.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "MentraManager+Status.swift"; sourceTree = "<group>"; };
 		ED297162215061F000B7C4FE /* JavaScriptCore.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = JavaScriptCore.framework; path = System/Library/Frameworks/JavaScriptCore.framework; sourceTree = SDKROOT; };
 		FAC715A2D49A985799AEE119 /* ExpoModulesProvider.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ExpoModulesProvider.swift; path = "Pods/Target Support Files/Pods-AOS/ExpoModulesProvider.swift"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -276,6 +286,11 @@
 				C5DE98952DE267CD0032FC99 /* Bridge.m */,
 				C5DE98962DE267CD0032FC99 /* Bridge.swift */,
 				C5DE97882DDD0EA80032FC99 /* MentraManager.swift */,
+				E1A4F0A03E6B4B8800F1AA01 /* MentraManager+Head.swift */,
+				E1A4F0A23E6B4B8800F1AA01 /* MentraManager+Mic.swift */,
+				E1A4F0A43E6B4B8800F1AA01 /* MentraManager+Display.swift */,
+				E1A4F0A63E6B4B8800F1AA01 /* MentraManager+Device.swift */,
+				E1A4F0A83E6B4B8800F1AA01 /* MentraManager+Status.swift */,
 				C5DE97892DDD0EA80032FC99 /* BridgeModule.h */,
 				C5DE978A2DDD0EA80032FC99 /* BridgeModule.m */,
 				C5DE98672DDD1FB00032FC99 /* Bridging-Header.h */,
@@ -619,6 +634,11 @@
 				13B07FC11A68108700A75B9A /* main.m in Sources */,
 				C5DE979E2DDD0EA80032FC99 /* BridgeModule.m in Sources */,
 				C5DE979F2DDD0EA80032FC99 /* MentraManager.swift in Sources */,
+				E1A4F0A13E6B4B8800F1AA01 /* MentraManager+Head.swift in Sources */,
+				E1A4F0A33E6B4B8800F1AA01 /* MentraManager+Mic.swift in Sources */,
+				E1A4F0A53E6B4B8800F1AA01 /* MentraManager+Display.swift in Sources */,
+				E1A4F0A73E6B4B8800F1AA01 /* MentraManager+Device.swift in Sources */,
+				E1A4F0A93E6B4B8800F1AA01 /* MentraManager+Status.swift in Sources */,
 				C5DE98472DDD0F420032FC99 /* SileroVAD.swift in Sources */,
 				C5DE98482DDD0F420032FC99 /* lc3.c in Sources */,
 				C5DE98492DDD0F420032FC99 /* ContentData.swift in Sources */,
@@ -663,7 +683,7 @@
 				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_ENTITLEMENTS = AOS/AOS.entitlements;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = T5XXXL6N36;
+				DEVELOPMENT_TEAM = 58Q847YBLM;
 				ENABLE_BITCODE = NO;
 				FRAMEWORK_SEARCH_PATHS = (
 					"$(inherited)",
@@ -804,7 +824,7 @@
 					"-lc++",
 				);
 				OTHER_SWIFT_FLAGS = "$(inherited) -D EXPO_CONFIGURATION_DEBUG";
-				PRODUCT_BUNDLE_IDENTIFIER = com.mentra.mentra;
+				PRODUCT_BUNDLE_IDENTIFIER = com.vanwifferen.mentra1111112;
 				PRODUCT_NAME = "MentraOS";
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
 				SUPPORTS_MACCATALYST = NO;
@@ -826,7 +846,7 @@
 				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_ENTITLEMENTS = AOS/AOS.entitlements;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = T5XXXL6N36;
+				DEVELOPMENT_TEAM = 58Q847YBLM;
 				ENABLE_BITCODE = NO;
 				FRAMEWORK_SEARCH_PATHS = (
 					"$(inherited)",
@@ -963,7 +983,7 @@
 					"-lc++",
 				);
 				OTHER_SWIFT_FLAGS = "$(inherited) -D EXPO_CONFIGURATION_RELEASE";
-				PRODUCT_BUNDLE_IDENTIFIER = com.mentra.mentra;
+				PRODUCT_BUNDLE_IDENTIFIER = com.vanwifferen.mentra1111112;
 				PRODUCT_NAME = "MentraOS";
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
 				SUPPORTS_MACCATALYST = NO;

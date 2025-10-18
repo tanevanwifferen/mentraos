@@ -1,18 +1,5 @@
-import React, {useEffect, useState} from "react"
-import {
-  View,
-  Text,
-  StyleSheet,
-  Switch,
-  Platform,
-  ScrollView,
-  AppState,
-  NativeModules,
-  Linking,
-  ViewStyle,
-  TextStyle,
-} from "react-native"
-import {useCoreStatus} from "@/contexts/CoreStatusProvider"
+import {useEffect, useState} from "react"
+import {Platform, ScrollView, AppState} from "react-native"
 import bridge from "@/bridge/MantleBridge"
 import {requestFeaturePermissions, PermissionFeatures, checkFeaturePermissions} from "@/utils/PermissionsUtils"
 import {
@@ -20,16 +7,16 @@ import {
   checkAndRequestNotificationAccessSpecialPermission,
 } from "@/utils/NotificationServiceUtils"
 // import {NotificationService} from '@/utils/NotificationServiceUtils';
-import showAlert from "@/utils/AlertUtils"
 import {Header, Screen} from "@/components/ignite"
-import {spacing, ThemedStyle} from "@/theme"
 import {useAppTheme} from "@/utils/useAppTheme"
 import ToggleSetting from "@/components/settings/ToggleSetting"
+import SelectSetting from "@/components/settings/SelectSetting"
 import {translate} from "@/i18n"
 import {Spacer} from "@/components/misc/Spacer"
 import {useNavigationHistory} from "@/contexts/NavigationHistoryContext"
 import PermissionButton from "@/components/settings/PermButton"
-import {SETTINGS_KEYS, useSetting, useSettingsStore} from "@/stores/settings"
+import {SETTINGS_KEYS, useSetting} from "@/stores/settings"
+import mantle from "@/managers/MantleManager"
 
 export default function PrivacySettingsScreen() {
   const [notificationsEnabled, setNotificationsEnabled] = useState(true)
@@ -39,9 +26,10 @@ export default function PrivacySettingsScreen() {
   const [locationPermissionPending, setLocationPermissionPending] = useState(false)
   const [appState, setAppState] = useState(AppState.currentState)
   const {theme} = useAppTheme()
-  const {goBack, push} = useNavigationHistory()
+  const {goBack} = useNavigationHistory()
   const [sensingEnabled, setSensingEnabled] = useSetting(SETTINGS_KEYS.sensing_enabled)
-  const setSetting = useSettingsStore(state => state.setSetting)
+  const [micActivationMode, setMicActivationMode] = useSetting(SETTINGS_KEYS.mic_activation_mode)
+  const [locationUpdatesMode, setLocationUpdatesMode] = useSetting(SETTINGS_KEYS.location_updates_mode)
 
   // Check permissions when screen loads
   useEffect(() => {
@@ -123,6 +111,16 @@ export default function PrivacySettingsScreen() {
       }
     }
   }
+
+  const micActivationOptions = [
+    {label: translate("settings:micActivationModeHeadUp"), value: "head_up"},
+    {label: translate("settings:micActivationModeAlwaysOn"), value: "always_on"},
+  ]
+
+  const locationUpdateOptions = [
+    {label: translate("settings:locationUpdatesModeHeadUp"), value: "head_up"},
+    {label: translate("settings:locationUpdatesModeAlwaysOn"), value: "always_on"},
+  ]
 
   // Monitor app state to detect when user returns from settings
   useEffect(() => {
@@ -268,6 +266,27 @@ export default function PrivacySettingsScreen() {
           subtitle={translate("settings:sensingSubtitle")}
           value={sensingEnabled}
           onValueChange={toggleSensing}
+        />
+        <Spacer height={theme.spacing.md} />
+        <SelectSetting
+          label={translate("settings:micActivationModeLabel")}
+          description={translate("settings:micActivationModeSubtitle")}
+          value={micActivationMode}
+          options={micActivationOptions}
+          onValueChange={value => {
+            void setMicActivationMode(value)
+          }}
+        />
+        <Spacer height={theme.spacing.md} />
+        <SelectSetting
+          label={translate("settings:locationUpdatesModeLabel")}
+          description={translate("settings:locationUpdatesModeSubtitle")}
+          value={locationUpdatesMode}
+          options={locationUpdateOptions}
+          onValueChange={value => {
+            void setLocationUpdatesMode(value)
+            void mantle.setLocationUpdatesMode(value)
+          }}
         />
       </ScrollView>
     </Screen>

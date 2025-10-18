@@ -112,7 +112,7 @@ class WebSocketManager extends EventEmitter {
       if (store.status === WebSocketStatus.CONNECTED) {
         clearInterval(this.reconnectInterval)
       }
-    }, 5000)
+    }, 15000)
   }
 
   handleReconnect() {

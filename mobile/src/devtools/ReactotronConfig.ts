@@ -59,7 +59,8 @@ reactotron.onCustomCommand<[{name: "route"; type: ArgType.String}]>({
     const {route} = args ?? {}
     if (route) {
       Reactotron.log(`Navigating to: ${route}`)
-      router.push(route)
+      // Cast for dev utility to satisfy Expo Router's typed paths
+      router.push(route as any)
     } else {
       Reactotron.log("Could not navigate. No route provided.")
     }
@@ -126,4 +127,6 @@ declare global {
 /**
  * Now that we've setup all our Reactotron configuration, let's connect!
  */
-reactotron.connect()
+if (__DEV__) {
+  reactotron.connect()
+}
